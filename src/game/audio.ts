@@ -7,6 +7,8 @@ class SoundEngine {
   private muted = false;
   private ambientNodes: AudioNode[] = [];
   private ambientTimer: number | null = null;
+  private calmMusicGain: GainNode | null = null;
+  private calmNatureGain: GainNode | null = null;
   private lastStepTime = 0;
 
   private ensureContext(): AudioContext | null {
@@ -59,6 +61,8 @@ class SoundEngine {
       }
     }
     this.ambientNodes = [];
+    this.calmMusicGain = null;
+    this.calmNatureGain = null;
   }
 
   public startMenuAmbient(): void {
@@ -130,6 +134,181 @@ class SoundEngine {
     gain.connect(this.masterGain);
     noise.start();
     this.ambientNodes.push(noise, filter, gain);
+  }
+
+  public startCalmAmbient(musicVol = 0.55, natureVol = 0.65): void {
+    this.stopAmbient();
+    const ctx = this.ensureContext();
+    if (!ctx || !this.masterGain) return;
+
+    const musicGain = ctx.createGain();
+    musicGain.gain.value = Math.max(0, Math.min(1, musicVol)) * 0.14;
+    musicGain.connect(this.masterGain);
+    this.calmMusicGain = musicGain;
+
+    const natureGain = ctx.createGain();
+    natureGain.gain.value = Math.max(0, Math.min(1, natureVol)) * 0.12;
+    natureGain.connect(this.masterGain);
+    this.calmNatureGain = natureGain;
+
+    // Warm harmonic ambient pad (C3 + G3 + D4 + E4 soft sine wash)
+    const padFilter = ctx.createBiquadFilter();
+    padFilter.type = 'lowpass';
+    padFilter.frequency.value = 520;
+    padFilter.connect(musicGain);
+    this.ambientNodes.push(musicGain, natureGain, padFilter);
+
+    const padFreqs = [130.81, 196.0, 293.66, 329.63];
+    padFreqs.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = idx % 2 === 0 ? 'sine' : 'triangle';
+      osc.frequency.value = freq;
+      g.gain.value = idx < 2 ? 0.28 : 0.12;
+      osc.connect(g);
+      g.connect(padFilter);
+      osc.start();
+      this.ambientNodes.push(osc, g);
+    });
+
+    // Gentle filtered breeze & soft brook flow (pinkish smoothed noise + slow LFO)
+    const bufferSize = ctx.sampleRate * 3;
+    const breezeBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const ch = breezeBuffer.getChannelData(0);
+    let lastOut = 0;
+    for (let i = 0; i < bufferSize; i++) {
+      const white = Math.random() * 2 - 1;
+      lastOut = (lastOut + 0.03 * white) / 1.03;
+      ch[i] = lastOut * 2.6;
+    }
+
+    const breeze = ctx.createBufferSource();
+    breeze.buffer = breezeBuffer;
+    breeze.loop = true;
+
+    const breezeFilter = ctx.createBiquadFilter();
+    breezeFilter.type = 'bandpass';
+    breezeFilter.frequency.value = 380;
+    breezeFilter.Q.value = 0.7;
+
+    const lfo = ctx.createOscillator();
+    const lfoGain = ctx.createGain();
+    lfo.type = 'sine';
+    lfo.frequency.value = 0.11; // ~9-second gentle wind swell
+    lfoGain.gain.value = 140;
+    lfo.connect(lfoGain);
+    lfoGain.connect(breezeFilter.frequency);
+
+    breeze.connect(breezeFilter);
+    breezeFilter.connect(natureGain);
+    breeze.start();
+    lfo.start();
+    this.ambientNodes.push(breeze, breezeFilter, lfo, lfoGain);
+
+    // Gentle melodic pentatonic notes & birdsong chirps
+    const melodyNotes = [523.25, 587.33, 659.25, 783.99, 880.0, 1046.5];
+    let step = 0;
+    this.ambientTimer = window.setInterval(() => {
+      if (!this.ctx || this.muted || this.ctx.state !== 'running') return;
+      const t = this.ctx.currentTime;
+      step += 1;
+
+      // Peaceful harp/marimba melody note
+      if (this.calmMusicGain && this.calmMusicGain.gain.value > 0.002) {
+        const noteFreq = melodyNotes[(step * 3 + Math.floor(Math.random() * 2)) % melodyNotes.length];
+        const osc = this.ctx.createOscillator();
+        const env = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(noteFreq, t);
+        env.gain.setValueAtTime(0.0001, t);
+        env.gain.linearRampToValueAtTime(0.24, t + 0.08);
+        env.gain.exponentialRampToValueAtTime(0.0001, t + 2.2);
+        osc.connect(env);
+        env.connect(this.calmMusicGain);
+        osc.start(t);
+        osc.stop(t + 2.25);
+      }
+
+      // Occasional soft songbird trill in nature layer
+      if (step % 2 === 0 && this.calmNatureGain && this.calmNatureGain.gain.value > 0.002) {
+        const chirps = Math.random() > 0.45 ? 2 : 3;
+        const baseBird = 1950 + Math.random() * 650;
+        for (let c = 0; c < chirps; c++) {
+          const ct = t + 0.35 + c * 0.14;
+          const bOsc = this.ctx.createOscillator();
+          const bEnv = this.ctx.createGain();
+          bOsc.type = 'sine';
+          bOsc.frequency.setValueAtTime(baseBird + c * 140, ct);
+          bOsc.frequency.exponentialRampToValueAtTime(baseBird * 1.18 + c * 90, ct + 0.055);
+          bOsc.frequency.exponentialRampToValueAtTime(baseBird * 0.94, ct + 0.095);
+          bEnv.gain.setValueAtTime(0.0001, ct);
+          bEnv.gain.linearRampToValueAtTime(0.14, ct + 0.018);
+          bEnv.gain.exponentialRampToValueAtTime(0.0001, ct + 0.1);
+          bOsc.connect(bEnv);
+          bEnv.connect(this.calmNatureGain);
+          bOsc.start(ct);
+          bOsc.stop(ct + 0.11);
+        }
+      }
+    }, 2400);
+  }
+
+  public setCalmLevels(musicVol: number, natureVol: number): void {
+    if (!this.ctx) return;
+    if (this.calmMusicGain) {
+      this.calmMusicGain.gain.setTargetAtTime(
+        Math.max(0, Math.min(1, musicVol)) * 0.14,
+        this.ctx.currentTime,
+        0.06
+      );
+    }
+    if (this.calmNatureGain) {
+      this.calmNatureGain.gain.setTargetAtTime(
+        Math.max(0, Math.min(1, natureVol)) * 0.12,
+        this.ctx.currentTime,
+        0.06
+      );
+    }
+  }
+
+  public playCalmChime(): void {
+    const ctx = this.ensureContext();
+    if (!ctx || !this.masterGain || this.muted) return;
+    const freqs = [523.25, 659.25, 783.99];
+    freqs.forEach((f, idx) => {
+      const t = ctx.currentTime + idx * 0.055;
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(f, t);
+      g.gain.setValueAtTime(0.001, t);
+      g.gain.linearRampToValueAtTime(0.075, t + 0.025);
+      g.gain.exponentialRampToValueAtTime(0.0008, t + 0.55);
+      osc.connect(g);
+      g.connect(this.masterGain!);
+      osc.start(t);
+      osc.stop(t + 0.58);
+    });
+  }
+
+  public playBreathingCue(phase: 'inhale' | 'hold' | 'exhale'): void {
+    const ctx = this.ensureContext();
+    if (!ctx || !this.masterGain || this.muted) return;
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = 'sine';
+    const startFreq = phase === 'inhale' ? 329.63 : phase === 'hold' ? 392.0 : 293.66;
+    const endFreq = phase === 'inhale' ? 392.0 : phase === 'hold' ? 392.0 : 261.63;
+    osc.frequency.setValueAtTime(startFreq, t);
+    osc.frequency.exponentialRampToValueAtTime(endFreq, t + 0.35);
+    g.gain.setValueAtTime(0.001, t);
+    g.gain.linearRampToValueAtTime(0.045, t + 0.04);
+    g.gain.exponentialRampToValueAtTime(0.0008, t + 0.42);
+    osc.connect(g);
+    g.connect(this.masterGain);
+    osc.start(t);
+    osc.stop(t + 0.45);
   }
 
   public playFootstep(surface: 'floor' | 'water', running = false): void {

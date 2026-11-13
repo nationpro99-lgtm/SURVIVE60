@@ -6,6 +6,7 @@ export type ScreenId =
   | 'menu'
   | 'select'
   | 'playing'
+  | 'calm'
   | 'howto'
   | 'profile'
   | 'achievements'
@@ -180,6 +181,9 @@ export interface GameSettings {
   forceTouchControls: boolean;
   graphicsQuality: 'low' | 'medium' | 'high';
   reducedCameraMotion: boolean;
+  calmMusicVolume?: number;
+  calmNatureVolume?: number;
+  calmScreenEffectsReduced?: boolean;
 }
 
 export interface PlayerProfile {
@@ -192,6 +196,7 @@ export interface PlayerProfile {
   trainingCompleted: Record<DisasterId, boolean>;
   disasterStats: Record<DisasterId, DisasterStats>;
   unlockedAchievements: string[];
+  calmCompletedActivities?: string[];
   settings: GameSettings;
 }
 

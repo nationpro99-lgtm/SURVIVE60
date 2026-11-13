@@ -103,6 +103,7 @@ export function createDefaultProfile(): PlayerProfile {
       fire: { plays: 0, wins: 0, bestScore: 0, bestTimeRemaining: 0 },
     },
     unlockedAchievements: [],
+    calmCompletedActivities: [],
     settings: {
       masterVolume: 0.65,
       muted: false,
@@ -110,6 +111,9 @@ export function createDefaultProfile(): PlayerProfile {
       forceTouchControls: false,
       graphicsQuality: detectRecommendedGraphicsQuality(),
       reducedCameraMotion: false,
+      calmMusicVolume: 0.55,
+      calmNatureVolume: 0.65,
+      calmScreenEffectsReduced: false,
     },
   };
 }
@@ -132,6 +136,7 @@ export function loadProfile(): PlayerProfile {
       },
       settings: { ...defaults.settings, ...(parsed.settings || {}) },
       unlockedAchievements: Array.isArray(parsed.unlockedAchievements) ? parsed.unlockedAchievements : [],
+      calmCompletedActivities: Array.isArray(parsed.calmCompletedActivities) ? parsed.calmCompletedActivities : [],
     };
   } catch {
     return createDefaultProfile();

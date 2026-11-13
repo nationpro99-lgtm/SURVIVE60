@@ -5,6 +5,7 @@ import {
   BookOpen,
   Compass,
   HelpCircle,
+  Leaf,
   Play,
   ShieldAlert,
   Sliders,
@@ -13,6 +14,7 @@ import {
   VolumeX,
 } from 'lucide-react';
 import { AICoachModal } from './components/AICoachModal';
+import { CalmModeView } from './components/CalmModeView';
 import { DisasterSelectScreen } from './components/DisasterSelectScreen';
 import { MenuBackgroundCanvas } from './components/MenuBackgroundCanvas';
 import { PlayableLevelView } from './components/PlayableLevelView';
@@ -101,6 +103,14 @@ export default function App() {
     setProfile(resetProfile());
   }, []);
 
+  const handleSaveCalmActivities = useCallback((ids: string[]) => {
+    setProfile((prev) => {
+      const next = { ...prev, calmCompletedActivities: ids };
+      saveProfile(next);
+      return next;
+    });
+  }, []);
+
   const openMenuAudio = () => {
     soundEngine.unlock();
     if (!profile.settings.muted) {
@@ -136,6 +146,18 @@ export default function App() {
           runSummary={coachSummary}
         />
       </>
+    );
+  }
+
+  if (screen === 'calm') {
+    return (
+      <CalmModeView
+        settings={profile.settings}
+        savedCompletedIds={profile.calmCompletedActivities || []}
+        onSaveCompletedIds={handleSaveCalmActivities}
+        onUpdateSettings={updateSettings}
+        onExitToMenu={() => setScreen('menu')}
+      />
     );
   }
 
@@ -231,6 +253,42 @@ export default function App() {
               >
                 <BookOpen className="h-6 w-6 text-emerald-400" />
                 <span>DISASTER TRAINING</span>
+              </button>
+            </div>
+
+            {/* Dedicated CALM MODE Card */}
+            <div className="mt-6 max-w-2xl">
+              <button
+                type="button"
+                onClick={() => {
+                  soundEngine.unlock();
+                  setScreen('calm');
+                }}
+                className="group w-full text-left rounded-2xl border border-emerald-200/80 bg-gradient-to-r from-[#f6f4ec] via-[#ecf6ef] to-[#e4f2fb] p-5 sm:p-6 shadow-[0_12px_36px_rgba(16,185,129,0.22)] hover:shadow-[0_16px_42px_rgba(16,185,129,0.34)] hover:-translate-y-0.5 transition-all duration-150 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+              >
+                <div className="flex items-start sm:items-center gap-4">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-700 text-white shadow-md shrink-0 group-hover:scale-105 transition-transform">
+                    <Leaf className="h-7 w-7" />
+                  </div>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm font-extrabold uppercase tracking-wider text-emerald-800">
+                      <span>Stress-Free 3D Exploration</span>
+                      <span>·</span>
+                      <span>No Countdown</span>
+                    </div>
+                    <h2 className="font-display text-2xl sm:text-3xl font-extrabold text-emerald-950 tracking-tight mt-0.5">
+                      CALM MODE
+                    </h2>
+                    <p className="text-sm sm:text-base font-semibold text-slate-700 mt-0.5">
+                      Explore. Learn. Breathe. At Your Own Pace.
+                    </p>
+                  </div>
+                </div>
+
+                <span className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 py-3 text-base font-extrabold text-white shadow-sm group-hover:bg-emerald-800 transition-colors whitespace-nowrap shrink-0">
+                  <Play className="h-4 w-4 fill-current" />
+                  <span>ENTER CALM MODE</span>
+                </span>
               </button>
             </div>
 
