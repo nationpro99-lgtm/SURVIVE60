@@ -1,0 +1,8 @@
+{
+  "name": "SURVIVE 60",
+  "description": "60 Seconds. One Decision. A Chance to Survive. A playable 3D first-person disaster survival game across Earthquake, Flood, and Fire emergencies.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
